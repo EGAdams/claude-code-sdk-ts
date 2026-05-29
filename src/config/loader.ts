@@ -66,18 +66,19 @@ export class ConfigLoader {
       }
       
       // Handle inheritance if extends field is present
-      if (config && config.extends) {
-        const baseConfigPath = path.resolve(path.dirname(absolutePath), config.extends);
+      const configObj = config as Record<string, unknown>;
+      if (configObj && typeof configObj === 'object' && 'extends' in configObj && typeof configObj.extends === 'string') {
+        const baseConfigPath = path.resolve(path.dirname(absolutePath), configObj.extends);
         const baseConfig = await this.loadFromFile(baseConfigPath, options);
-        delete config.extends; // Remove extends field after processing
-        const merged = this.mergeConfigs(baseConfig, config);
+        delete configObj.extends; // Remove extends field after processing
+        const merged = this.mergeConfigs(baseConfig, this.validateConfig(configObj));
         this.loadedConfigs.set(absolutePath, merged);
         return merged;
       }
-      
-      this.validateConfig(config);
-      this.loadedConfigs.set(absolutePath, config);
-      return config;
+
+      const validated = this.validateConfig(config);
+      this.loadedConfigs.set(absolutePath, validated);
+      return validated;
     } catch (error) {
       // Clean up on error
       this.loadedConfigs.delete(absolutePath);
@@ -103,12 +104,11 @@ export class ConfigLoader {
   /**
    * Parse YAML content
    */
-  private async parseYAML(content: string, options?: ConfigLoadOptions): Promise<unknown> {
+  private async parseYAML(content: string, _options?: ConfigLoadOptions): Promise<unknown> {
     try {
       // Dynamically import js-yaml to avoid loading it when not needed
       const yaml = await import('js-yaml');
       return yaml.load(content, {
-        strict: options?.strict ?? true,
         schema: yaml.JSON_SCHEMA
       });
     } catch (error) {
@@ -149,7 +149,7 @@ export class ConfigLoader {
       this.validateTools(cfg.tools);
     }
 
-    return cfg as MCPConfigSchema;
+    return cfg as unknown as MCPConfigSchema;
   }
 
   /**
@@ -166,11 +166,9 @@ export class ConfigLoader {
 
     if (config.tools) {
       Object.entries(config.tools).forEach(([toolName, permission]) => {
-        // Handle complex tool configs that might have nested structure
-        const permValue = typeof permission === 'object' && permission !== null ? permission.permission : permission;
-        if (permValue && !validPermissions.includes(permValue)) {
+        if (permission && !validPermissions.includes(permission)) {
           throw new Error(
-            `Invalid permission value '${permValue}' at mcpServers.${serverName}.tools.${toolName}`
+            `Invalid permission value '${permission}' at mcpServers.${serverName}.tools.${toolName}`
           );
         }
       });
@@ -320,7 +318,7 @@ export class ConfigLoader {
     
     const expandValue = (value: unknown): unknown => {
       if (typeof value === 'string') {
-        return value.replace(/\$\{([^}]+)\}/g, (match, varName) => {
+        return value.replace(/\$\{([^}]+)\}/g, (_match, varName: string) => {
           const envValue = process.env[varName];
           if (envValue === undefined) {
             throw new Error(`Environment variable ${varName} not found`);
@@ -328,14 +326,15 @@ export class ConfigLoader {
           return envValue;
         });
       } else if (typeof value === 'object' && value !== null) {
-        Object.keys(value).forEach(key => {
-          value[key] = expandValue(value[key]);
+        const obj = value as Record<string, unknown>;
+        Object.keys(obj).forEach(key => {
+          obj[key] = expandValue(obj[key]);
         });
       }
       return value;
     };
-    
-    return expandValue(expanded);
+
+    return expandValue(expanded) as MCPConfigSchema;
   }
 
   /**

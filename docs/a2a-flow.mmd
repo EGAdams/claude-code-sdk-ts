@@ -1,0 +1,33 @@
+sequenceDiagram
+    participant Orch as Orchestrator
+    participant MC as IMessengerClient
+    participant MO as IMessageObserver
+    participant RP as IRequestParser
+    participant TD as ITaskDispatcher
+    participant CR as ICapabilityRegistry
+    participant Cap as ICapability
+    participant SDK as ClaudeSDK
+    participant SS as IStreamSink
+    participant Pub as IResponsePublisher
+
+    Orch->>MC: publish(january-statements, agent.execute_task)
+    MC->>MO: deliver(envelope)
+    MO->>RP: parse(envelope)
+    RP-->>MO: ITaskRequest
+    MO->>TD: dispatch(request)
+    TD->>CR: resolve(capability name)
+    CR-->>TD: ICapability
+    TD->>Cap: execute(request)
+    Cap->>SDK: query(prompt).stream(cb)
+
+    loop each chunk
+        SDK->>SS: onAssistantText(chunk)
+        SS->>Pub: publish(partial, chunk)
+        Pub->>MC: publish(correlationId, partial)
+        MC->>Orch: partial frame - display live
+    end
+
+    SDK-->>Cap: stream complete
+    Cap->>Pub: publish(ok)
+    Pub->>MC: publish(correlationId, ok)
+    MC->>Orch: terminal frame - task closed

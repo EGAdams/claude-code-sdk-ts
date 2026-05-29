@@ -20,8 +20,6 @@ import type {
 import { ConsoleLogger } from '../logger.js';
 
 export class ClaudeTelemetryProvider implements TelemetryProvider {
-  private config?: TelemetryConfig;
-  private initialized = false;
   private loggers = new Map<string, ClaudeTelemetryLogger>();
   private queryMetrics: QueryMetrics = this.initializeQueryMetrics();
   private toolMetrics = new Map<string, ToolMetrics>();
@@ -43,16 +41,9 @@ export class ClaudeTelemetryProvider implements TelemetryProvider {
     };
   }
   
-  async initialize(config: TelemetryConfig): Promise<void> {
-    this.config = config;
-    this.initialized = true;
-    
+  async initialize(_config: TelemetryConfig): Promise<void> {
     // Initialize any external telemetry providers here
     // For example, OpenTelemetry SDK initialization
-    if (config.endpoint) {
-      // Set up OTLP exporter
-      // Telemetry initialized with endpoint: ${config.endpoint}
-    }
   }
   
   getLogger(name?: string): TelemetryLogger {
@@ -71,7 +62,6 @@ export class ClaudeTelemetryProvider implements TelemetryProvider {
     await this.forceFlush();
     
     // Clear internal state
-    this.initialized = false;
     this.loggers.clear();
     this.spans.clear();
   }
@@ -171,12 +161,14 @@ export class ClaudeTelemetryProvider implements TelemetryProvider {
 
 class ClaudeTelemetryLogger extends ConsoleLogger implements TelemetryLogger {
   private context?: TelemetryContext;
-  
+  private loggerName: string;
+
   constructor(
     name: string,
     private provider: ClaudeTelemetryProvider
   ) {
-    super(name);
+    super();
+    this.loggerName = name;
   }
   
   startSpan(name: string, options?: SpanOptions): TelemetrySpan {
@@ -214,7 +206,7 @@ class ClaudeTelemetryLogger extends ConsoleLogger implements TelemetryLogger {
   }
   
   child(context: TelemetryContext): TelemetryLogger {
-    const childLogger = new ClaudeTelemetryLogger(`${this.name}:child`, this.provider);
+    const childLogger = new ClaudeTelemetryLogger(`${this.loggerName}:child`, this.provider);
     childLogger.setContext({
       ...this.context,
       ...context
@@ -240,13 +232,15 @@ class TelemetrySpanImpl implements TelemetrySpan {
   private ended = false;
   private startTime = Date.now();
   private endTime?: number;
-  
+  spanName: string;
+
   constructor(
-    private name: string,
+    name: string,
     private context: TelemetryContext,
-    private options?: SpanOptions,
+    options?: SpanOptions,
     private provider?: ClaudeTelemetryProvider
   ) {
+    this.spanName = name;
     if (options?.attributes) {
       this.attributes = { ...options.attributes };
     }
@@ -299,7 +293,7 @@ class TelemetrySpanImpl implements TelemetrySpan {
   }
   
   updateName(name: string): void {
-    this.name = name;
+    this.spanName = name;
   }
   
   // Internal getters for testing
@@ -424,7 +418,7 @@ class NoOpTelemetryProvider implements TelemetryProvider {
 
 class NoOpTelemetryLogger extends ConsoleLogger implements TelemetryLogger {
   constructor() {
-    super('noop');
+    super();
   }
   
   startSpan(_name: string, _options?: SpanOptions): TelemetrySpan {
