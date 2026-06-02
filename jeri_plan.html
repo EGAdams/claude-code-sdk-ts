@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Jeri Agent — Implementation Plan</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --yellow: #d29922;
+      --red: #f85149;
+      --purple: #bc8cff;
+      --orange: #ffa657;
+      --teal: #39d353;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+      line-height: 1.6;
+      padding: 2rem;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    h1 { font-size: 2.2rem; color: var(--accent); margin-bottom: 0.25rem; }
+    h2 { font-size: 1.4rem; color: var(--purple); margin: 2rem 0 0.75rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
+    h3 { font-size: 1.1rem; color: var(--orange); margin: 1.25rem 0 0.5rem; }
+    h4 { font-size: 0.95rem; color: var(--teal); margin: 0.75rem 0 0.25rem; }
+    p { margin-bottom: 0.75rem; color: var(--text); }
+    .subtitle { color: var(--muted); font-size: 1rem; margin-bottom: 2rem; }
+    .badge {
+      display: inline-block;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.15rem 0.5rem;
+      font-size: 0.75rem;
+      font-family: monospace;
+      color: var(--accent);
+      margin: 0.1rem;
+    }
+    .badge.green { color: var(--green); }
+    .badge.yellow { color: var(--yellow); }
+    .badge.red { color: var(--red); }
+    .badge.purple { color: var(--purple); }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      margin: 1rem 0;
+    }
+    .card.accent { border-left: 3px solid var(--accent); }
+    .card.green { border-left: 3px solid var(--green); }
+    .card.yellow { border-left: 3px solid var(--yellow); }
+    .card.purple { border-left: 3px solid var(--purple); }
+    .card.orange { border-left: 3px solid var(--orange); }
+    pre, code {
+      font-family: "Fira Code", "Cascadia Code", Consolas, monospace;
+      font-size: 0.85rem;
+    }
+    pre {
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1rem 1.25rem;
+      overflow-x: auto;
+      margin: 0.75rem 0;
+    }
+    code { color: var(--orange); }
+    pre code { color: var(--text); }
+    .keyword { color: var(--purple); }
+    .string { color: var(--green); }
+    .comment { color: var(--muted); font-style: italic; }
+    .type { color: var(--accent); }
+    ul, ol { padding-left: 1.5rem; margin-bottom: 0.75rem; }
+    li { margin-bottom: 0.3rem; }
+    table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.875rem; }
+    th { background: var(--surface); color: var(--accent); text-align: left; padding: 0.5rem 0.75rem; border: 1px solid var(--border); }
+    td { padding: 0.4rem 0.75rem; border: 1px solid var(--border); color: var(--text); vertical-align: top; }
+    tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+    .phase-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin: 1.5rem 0 0.75rem;
+    }
+    .phase-num {
+      background: var(--accent);
+      color: var(--bg);
+      font-weight: 700;
+      border-radius: 50%;
+      width: 2rem;
+      height: 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.9rem;
+      flex-shrink: 0;
+    }
+    .phase-num.done { background: var(--green); }
+    .phase-num.partial { background: var(--yellow); }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+    @media (max-width: 700px) { .grid2, .grid3 { grid-template-columns: 1fr; } }
+    .diagram {
+      background: #0a0e14;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1.25rem;
+      font-family: monospace;
+      font-size: 0.8rem;
+      line-height: 1.8;
+      overflow-x: auto;
+      white-space: pre;
+    }
+    .status-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.5rem 0; }
+    .pill {
+      border-radius: 12px;
+      padding: 0.2rem 0.7rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+    .pill.exists { background: rgba(63,185,80,0.15); color: var(--green); border: 1px solid rgba(63,185,80,0.3); }
+    .pill.needed { background: rgba(88,166,255,0.12); color: var(--accent); border: 1px solid rgba(88,166,255,0.3); }
+    .pill.partial { background: rgba(210,153,34,0.15); color: var(--yellow); border: 1px solid rgba(210,153,34,0.3); }
+    hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+    .note {
+      background: rgba(88,166,255,0.06);
+      border: 1px solid rgba(88,166,255,0.2);
+      border-radius: 6px;
+      padding: 0.75rem 1rem;
+      font-size: 0.875rem;
+      color: var(--muted);
+      margin: 0.75rem 0;
+    }
+    .note strong { color: var(--accent); }
+    .warn {
+      background: rgba(210,153,34,0.07);
+      border: 1px solid rgba(210,153,34,0.25);
+      border-radius: 6px;
+      padding: 0.75rem 1rem;
+      font-size: 0.875rem;
+      color: var(--muted);
+      margin: 0.75rem 0;
+    }
+    .warn strong { color: var(--yellow); }
+  </style>
+</head>
+<body>
+
+<h1>Jeri — Agent Implementation Plan</h1>
+<p class="subtitle">
+  Letta-native · A2A-compatible · claude-code-sdk-ts expert
+  &nbsp;·&nbsp; <span style="color:var(--muted)">Written 2026-06-02 for the Mom's Machine Team</span>
+</p>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2>1. Who Jeri Is</h2>
+
+<div class="card accent">
+  <p>
+    <strong>Jeri</strong> is a stateful Letta agent whose domain of mastery is the
+    <code>claude-code-sdk-ts</code> TypeScript SDK repo. She runs on mom's Letta server,
+    participates in the local multi-agent mesh via Letta's agent-to-agent messaging,
+    and simultaneously exposes herself as a discoverable
+    <strong>Google A2A endpoint</strong> so any standards-compliant agent
+    (on any vendor stack) can delegate work to her over HTTP/JSON-RPC 2.0.
+  </p>
+  <div class="status-row">
+    <span class="pill exists">Letta server: 10.0.0.143:8283</span>
+    <span class="pill exists">Blueprint: jeris_ts_blueprint.md</span>
+    <span class="pill needed">agents/ dir: empty — needs implementation</span>
+    <span class="pill needed">A2A server: not yet built</span>
+    <span class="pill partial">create-letta-agent.py: exists but targets wrong agent name</span>
+  </div>
+</div>
+
+<div class="grid2">
+  <div class="card">
+    <h3>Core Identity</h3>
+    <table>
+      <tr><th>Field</th><th>Value</th></tr>
+      <tr><td>Letta name</td><td><code>jeri-agent</code></td></tr>
+      <tr><td>Primary topic</td><td><code>january-statements</code></td></tr>
+      <tr><td>Repo mastered</td><td><code>/home/adamsl/claude-code-sdk-ts</code></td></tr>
+      <tr><td>A2A skill ID</td><td><code>claude-sdk-expert</code></td></tr>
+      <tr><td>A2A port</td><td><code>9001</code> (proposed)</td></tr>
+      <tr><td>Artifact root</td><td><code>$JERI_ARTIFACT_ROOT</code></td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h3>Five Core Capabilities</h3>
+    <ul>
+      <li><code>analyze_statement</code> — deep-read a bank statement file</li>
+      <li><code>extract_transactions</code> — pull structured rows from PDF/text</li>
+      <li><code>summarize_statement</code> — natural language summary</li>
+      <li><code>prepare_report_snippet</code> — formatted snippet for rollup reports</li>
+      <li><code>find_anomalies</code> — flag unusual transactions</li>
+    </ul>
+    <p style="margin-top:0.5rem;color:var(--muted);font-size:0.85rem">
+      Each capability maps 1-to-1 onto an A2A Skill and a Letta tool.
+    </p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2>2. Technology Primers</h2>
+
+<div class="grid2">
+  <div class="card purple">
+    <h3>Letta — Stateful Agent Platform</h3>
+    <p>Letta (formerly MemGPT) is a server that hosts long-lived agents with persistent
+    memory. Each agent gets <strong>memory blocks</strong> (persona, human, custom) and
+    a list of attached <strong>tools</strong> (Python functions).</p>
+    <h4>Key API calls</h4>
+    <pre><code><span class="keyword">from</span> letta_client <span class="keyword">import</span> Letta
+
+client = Letta(base_url=<span class="string">"http://10.0.0.143:8283"</span>)
+
+<span class="comment"># Create agent</span>
+agent = client.agents.create(
+  name=<span class="string">"jeri-agent"</span>,
+  model=<span class="string">"anthropic/claude-sonnet-4-6-20250514"</span>,
+  memory_blocks=[...],
+  tools=[<span class="string">"read_sdk_file"</span>, <span class="string">"run_typescript"</span>, ...]
+)
+
+<span class="comment"># Attach an extra tool later</span>
+client.agents.tools.attach(agent_id, tool_id)</code></pre>
+    <h4>Agent-to-Agent</h4>
+    <p>Letta agents share a <em>shared memory block</em> or call each other via injected
+    <code>client</code> inside a tool — <code>client.agents.messages.create(agent_id, [msg])</code>.</p>
+  </div>
+
+  <div class="card green">
+    <h3>Google A2A Protocol</h3>
+    <p>Open standard (Apr 2025, 150+ orgs). Agents discover each other via an
+    <strong>AgentCard</strong> at <code>GET /.well-known/agent.json</code> and delegate
+    work as <strong>Tasks</strong> over HTTP + JSON-RPC 2.0.</p>
+    <h4>AgentCard (key fields)</h4>
+    <pre><code>{
+  <span class="string">"name"</span>: <span class="string">"Jeri"</span>,
+  <span class="string">"description"</span>: <span class="string">"SDK &amp; financial statement expert"</span>,
+  <span class="string">"url"</span>: <span class="string">"http://10.0.0.143:9001"</span>,
+  <span class="string">"capabilities"</span>: {
+    <span class="string">"streaming"</span>: <span class="keyword">true</span>,
+    <span class="string">"pushNotifications"</span>: <span class="keyword">true</span>
+  },
+  <span class="string">"skills"</span>: [
+    { <span class="string">"id"</span>: <span class="string">"analyze_statement"</span>, ... },
+    { <span class="string">"id"</span>: <span class="string">"find_anomalies"</span>, ... }
+  ]
+}</code></pre>
+    <h4>Task lifecycle</h4>
+    <p>
+      <span class="badge">SUBMITTED</span> →
+      <span class="badge yellow">WORKING</span> →
+      <span class="badge green">COMPLETED</span> /
+      <span class="badge red">FAILED</span>
+    </p>
+    <h4>JSON-RPC methods Jeri must implement</h4>
+    <ul>
+      <li><code>SendMessage</code> — start or continue a task</li>
+      <li><code>SendStreamingMessage</code> — SSE streaming variant</li>
+      <li><code>GetTask</code> — poll task state</li>
+      <li><code>CancelTask</code> — cancel in-flight work</li>
+      <li><code>GetExtendedAgentCard</code> — authenticated card</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2>3. Architecture Overview</h2>
+
+<div class="diagram">
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                        MOM'S MACHINE  (10.0.0.143)                      │
+  │                                                                         │
+  │  ┌─────────────────────────┐     ┌────────────────────────────────────┐ │
+  │  │   Letta Server :8283    │     │     Jeri A2A HTTP Server :9001     │ │
+  │  │                         │     │                                    │ │
+  │  │  ┌─────────────────┐   │     │  GET /.well-known/agent.json       │ │
+  │  │  │  jeri-agent     │◄──┼─────┼──POST /  (JSON-RPC 2.0)           │ │
+  │  │  │                 │   │     │  SSE   /stream                     │ │
+  │  │  │  memory blocks: │   │     │                                    │ │
+  │  │  │  • persona      │   │     └────────────┬───────────────────────┘ │
+  │  │  │  • sdk_context  │   │                  │ A2A Tasks arrive         │
+  │  │  │  • january_ctx  │   │                  ▼                         │
+  │  │  │                 │   │     ┌────────────────────────────────────┐ │
+  │  │  │  tools:         │   │     │     Jeri Core (TypeScript)         │ │
+  │  │  │  • read_sdk_*   │   │     │  agents/jeri/                      │ │
+  │  │  │  • run_ts       │   │     │  ├── a2a/server.ts  ← HTTP layer   │ │
+  │  │  │  • send_a2a     │   │     │  ├── capabilities/  ← 5 skills     │ │
+  │  │  │  • msg_letta    │   │     │  ├── letta/bridge.py← Letta calls  │ │
+  │  │  │  • read_stmt    │   │     │  └── sdk/           ← SDK wrapper  │ │
+  │  │  └──────┬──────────┘   │     └────────────┬───────────────────────┘ │
+  │  │         │              │                  │ calls                    │
+  │  └─────────┼──────────────┘                  ▼                         │
+  │            │                  ┌────────────────────────────────────┐    │
+  │            │                  │  claude-code-sdk-ts (local repo)   │    │
+  │            └─────────────────►│  fluent API: claude().withRole()   │    │
+  │                               │  .ask(...).stream(cb)              │    │
+  │                               └────────────────────────────────────┘    │
+  │                                                                         │
+  │  Other Letta Agents ──► client.agents.messages.create(jeri_id, [msg])  │
+  │  External A2A Agents ──► POST http://10.0.0.143:9001/ (JSON-RPC)       │
+  └─────────────────────────────────────────────────────────────────────────┘
+</div>
+
+<div class="note">
+  <strong>Key insight:</strong> Jeri has two front doors. Letta agents on the same server
+  call her through Letta's native messaging. External agents (any vendor) reach her through
+  the A2A HTTP endpoint. Both paths ultimately invoke the same five capability functions.
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2>4. What Already Exists (Recon Report)</h2>
+
+<table>
+  <tr>
+    <th>Artifact</th>
+    <th>Location</th>
+    <th>Status</th>
+    <th>Team action</th>
+  </tr>
+  <tr>
+    <td>Detailed design blueprint</td>
+    <td><code>jeris_ts_blueprint.md</code></td>
+    <td><span class="pill exists">EXISTS</span></td>
+    <td>Use as the canonical interface spec — all 8 interface families are defined there</td>
+  </tr>
+  <tr>
+    <td>Letta agent creator script</td>
+    <td><code>create-letta-agent.py</code></td>
+    <td><span class="pill partial">PARTIAL</span></td>
+    <td>Rename target to <code>jeri-agent</code>, update persona &amp; memory blocks (see Phase 1)</td>
+  </tr>
+  <tr>
+    <td>A2A flow diagram</td>
+    <td><code>docs/a2a-flow.mmd</code></td>
+    <td><span class="pill exists">EXISTS</span></td>
+    <td>This Mermaid diagram is the streaming flow — implement it in <code>agents/jeri/a2a/</code></td>
+  </tr>
+  <tr>
+    <td>Multi-agent design notes</td>
+    <td><code>docs/multi-agent-design-ideas.md</code></td>
+    <td><span class="pill exists">EXISTS</span></td>
+    <td>Patterns 1, 3, 4, 6 directly apply to Jeri's SDK usage</td>
+  </tr>
+  <tr>
+    <td>claude-code-sdk-ts package</td>
+    <td><code>src/</code> (v0.3.3)</td>
+    <td><span class="pill exists">EXISTS</span></td>
+    <td>Jeri uses the <strong>fluent API</strong> (<code>claude().withRole().ask().stream()</code>) for all SDK calls</td>
+  </tr>
+  <tr>
+    <td>agents/ implementation dir</td>
+    <td><code>agents/</code></td>
+    <td><span class="pill needed">EMPTY</span></td>
+    <td>This is where all new Jeri code goes — see folder layout in Phase 2</td>
+  </tr>
+  <tr>
+    <td>Jeri A2A server</td>
+    <td>—</td>
+    <td><span class="pill needed">NOT BUILT</span></td>
+    <td>Build in Phase 3</td>
+  </tr>
+</table>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2>5. Implementation Phases</h2>
+
+<!-- Phase 1 -->
+<div class="phase-header">
+  <div class="phase-num">1</div>
+  <h3 style="margin:0;color:var(--text)">Letta Agent Registration</h3>
+  <span class="badge yellow">~1–2 hours</span>
+</div>
+<div class="card">
+  <p>Get Jeri registered on the Letta server with the right persona and memory blocks.
+  This is a <strong>Python-only</strong> step — modify <code>create-letta-agent.py</code>.</p>
+
+  <h4>Memory Blocks</h4>
+  <table>
+    <tr><th>Block name</th><th>Purpose</th></tr>
+    <tr><td><code>persona</code></td><td>Jeri's identity: SDK expert, financial analyst, January statements specialist. Includes build commands (<code>npm run build</code>, <code>npm test</code>, etc.) and the two API layers (classic <code>query()</code> and fluent <code>claude()</code>).</td></tr>
+    <tr><td><code>human</code></td><td>Adam's context — who he is, the rol_finances project, what the January statements are for</td></tr>
+    <tr><td><code>sdk_context</code></td><td>Snapshot of the SDK's public API surface — exports from <code>src/index.ts</code>, key types, fluent chain methods. Refreshed via a tool.</td></tr>
+    <tr><td><code>january_context</code></td><td>Path to statements dir, known bank names, current processing status</td></tr>
+  </table>
+
+  <h4>Tools to Attach at Creation</h4>
+  <pre><code>tools = [
+    <span class="string">"read_sdk_file"</span>,       <span class="comment"># reads any file in the SDK repo</span>
+    <span class="string">"list_sdk_dir"</span>,        <span class="comment"># lists a directory in the SDK repo</span>
+    <span class="string">"run_typescript"</span>,      <span class="comment"># runs npm scripts (build/test/typecheck)</span>
+    <span class="string">"read_statement"</span>,      <span class="comment"># reads a bank statement file</span>
+    <span class="string">"send_a2a_task"</span>,       <span class="comment"># calls another A2A agent by URL</span>
+    <span class="string">"send_letta_message"</span>,  <span class="comment"># messages another Letta agent by ID</span>
+    <span class="string">"web_search"</span>,          <span class="comment"># Letta built-in</span>
+]</code></pre>
+</div>
+
+<!-- Phase 2 -->
+<div class="phase-header">
+  <div class="phase-num">2</div>
+  <h3 style="margin:0;color:var(--text)">agents/ Folder — TypeScript Skeleton</h3>
+  <span class="badge yellow">~2–3 hours</span>
+</div>
+<div class="card">
+  <p>Create the <code>agents/jeri/</code> directory structure. Follow the interfaces defined
+  in <code>jeris_ts_blueprint.md</code> exactly — all 8 interface families are already
+  designed; this phase wires them up.</p>
+
+  <pre><code>agents/
+└── jeri/
+    ├── index.ts              <span class="comment"># entry point — exports JeriAgent class</span>
+    ├── interfaces/
+    │   ├── claude.ts         <span class="comment"># IClaudeClient, IQueryBuilder (from blueprint)</span>
+    │   ├── capabilities.ts   <span class="comment"># ICapability, ICapabilityRegistry</span>
+    │   ├── a2a.ts            <span class="comment"># ITaskRequest, ITaskResponse, IA2AServer</span>
+    │   ├── documents.ts      <span class="comment"># IDocumentReader, IStatementParser</span>
+    │   ├── policy.ts         <span class="comment"># IScopeGuard, IPathPolicy</span>
+    │   ├── session.ts        <span class="comment"># ISession, ISessionStore</span>
+    │   ├── telemetry.ts      <span class="comment"># IMetricEmitter, ISpan</span>
+    │   └── lifecycle.ts      <span class="comment"># IAgentLifecycle, IHealthCheck</span>
+    ├── capabilities/
+    │   ├── analyzeStatement.ts
+    │   ├── extractTransactions.ts
+    │   ├── summarizeStatement.ts
+    │   ├── prepareReportSnippet.ts
+    │   └── findAnomalies.ts
+    ├── a2a/
+    │   ├── server.ts         <span class="comment"># Express HTTP + JSON-RPC dispatcher</span>
+    │   ├── agentCard.ts      <span class="comment"># AgentCard builder / /.well-known handler</span>
+    │   └── streaming.ts      <span class="comment"># SSE push for SendStreamingMessage</span>
+    ├── letta/
+    │   ├── tools.py          <span class="comment"># Python Letta tool definitions</span>
+    │   └── bridge.ts         <span class="comment"># TypeScript ↔ Letta tool bridge (optional)</span>
+    └── sdk/
+        └── wrapper.ts        <span class="comment"># Thin wrapper around fluent API for capabilities</span></code></pre>
+
+  <div class="note">
+    <strong>Convention:</strong> All interface files are stubs first — define the interface,
+    export it, add a <code>// TODO: implement</code> adapter. The blueprint already has
+    the interface text; copy it verbatim. Fill adapters in Phase 3+.
+  </div>
+</div>
+
+<!-- Phase 3 -->
+<div class="phase-header">
+  <div class="phase-num">3</div>
+  <h3 style="margin:0;color:var(--text)">A2A HTTP Server</h3>
+  <span class="badge yellow">~3–4 hours</span>
+</div>
+<div class="card">
+  <p>Implement <code>agents/jeri/a2a/server.ts</code> — a small Express server that makes
+  Jeri discoverable and callable by any A2A-compliant agent.</p>
+
+  <h4>AgentCard (served at GET /.well-known/agent.json)</h4>
+  <pre><code>{
+  <span class="string">"name"</span>: <span class="string">"Jeri"</span>,
+  <span class="string">"description"</span>: <span class="string">"January financial statement analyst &amp; claude-code-sdk-ts expert"</span>,
+  <span class="string">"url"</span>: <span class="string">"http://10.0.0.143:9001"</span>,
+  <span class="string">"provider"</span>: { <span class="string">"organization"</span>: <span class="string">"rol-finances"</span> },
+  <span class="string">"version"</span>: <span class="string">"1.0.0"</span>,
+  <span class="string">"capabilities"</span>: {
+    <span class="string">"streaming"</span>: <span class="keyword">true</span>,
+    <span class="string">"pushNotifications"</span>: <span class="keyword">true</span>
+  },
+  <span class="string">"skills"</span>: [
+    { <span class="string">"id"</span>: <span class="string">"analyze_statement"</span>,    <span class="string">"name"</span>: <span class="string">"Analyze Statement"</span>,     <span class="string">"description"</span>: <span class="string">"Deep analysis of a bank statement file"</span> },
+    { <span class="string">"id"</span>: <span class="string">"extract_transactions"</span>,  <span class="string">"name"</span>: <span class="string">"Extract Transactions"</span>,  <span class="string">"description"</span>: <span class="string">"Structured row extraction from PDF/text"</span> },
+    { <span class="string">"id"</span>: <span class="string">"summarize_statement"</span>,   <span class="string">"name"</span>: <span class="string">"Summarize Statement"</span>,   <span class="string">"description"</span>: <span class="string">"Natural language summary of a statement"</span> },
+    { <span class="string">"id"</span>: <span class="string">"prepare_report_snippet"</span>,<span class="string">"name"</span>: <span class="string">"Report Snippet"</span>,        <span class="string">"description"</span>: <span class="string">"Formatted snippet for rollup reports"</span> },
+    { <span class="string">"id"</span>: <span class="string">"find_anomalies"</span>,        <span class="string">"name"</span>: <span class="string">"Find Anomalies"</span>,        <span class="string">"description"</span>: <span class="string">"Flag unusual or unexpected transactions"</span> }
+  ]
+}</code></pre>
+
+  <h4>JSON-RPC Handler Skeleton</h4>
+  <pre><code><span class="keyword">import</span> express <span class="keyword">from</span> <span class="string">"express"</span>;
+<span class="keyword">import</span> { CapabilityRegistry } <span class="keyword">from</span> <span class="string">"../capabilities"</span>;
+
+<span class="keyword">const</span> app = express();
+app.use(express.json());
+
+app.get(<span class="string">"/.well-known/agent.json"</span>, (_req, res) => res.json(AGENT_CARD));
+
+app.post(<span class="string">"/"</span>, <span class="keyword">async</span> (req, res) => {
+  <span class="keyword">const</span> { method, params, id } = req.body;
+  <span class="keyword">switch</span> (method) {
+    <span class="keyword">case</span> <span class="string">"SendMessage"</span>:
+      <span class="keyword">return</span> handleSendMessage(params, id, res);
+    <span class="keyword">case</span> <span class="string">"SendStreamingMessage"</span>:
+      <span class="keyword">return</span> handleSSE(params, id, res);       <span class="comment">// res.writeHead(200, SSE headers)</span>
+    <span class="keyword">case</span> <span class="string">"GetTask"</span>:
+      <span class="keyword">return</span> handleGetTask(params, id, res);
+    <span class="keyword">case</span> <span class="string">"CancelTask"</span>:
+      <span class="keyword">return</span> handleCancel(params, id, res);
+    <span class="keyword">default</span>:
+      res.json({ jsonrpc: <span class="string">"2.0"</span>, id, error: { code: -32601, message: <span class="string">"Method not found"</span> } });
+  }
+});</code></pre>
+
+  <h4>Task state machine (in-memory store for MVP)</h4>
+  <pre><code><span class="keyword">type</span> <span class="type">TaskState</span> = <span class="string">"SUBMITTED"</span>|<span class="string">"WORKING"</span>|<span class="string">"COMPLETED"</span>|<span class="string">"FAILED"</span>|<span class="string">"CANCELED"</span>;
+<span class="keyword">const</span> tasks = <span class="keyword">new</span> Map&lt;<span class="type">string</span>, { state: <span class="type">TaskState</span>; artifacts: <span class="type">any</span>[] }&gt;();</code></pre>
+
+  <div class="warn">
+    <strong>Watch out:</strong> A2A's <code>SendStreamingMessage</code> uses SSE, not WebSocket.
+    Set headers <code>Content-Type: text/event-stream</code> and keep-alive, and flush each
+    chunk as <code>data: {json}\n\n</code>. The existing <code>docs/a2a-flow.mmd</code>
+    shows exactly this streaming path — follow it.
+  </div>
+</div>
+
+<!-- Phase 4 -->
+<div class="phase-header">
+  <div class="phase-num">4</div>
+  <h3 style="margin:0;color:var(--text)">Letta Tool Definitions (Python)</h3>
+  <span class="badge yellow">~2–3 hours</span>
+</div>
+<div class="card">
+  <p>Write Jeri's Letta tools as Python functions in <code>agents/jeri/letta/tools.py</code>.
+  Letta auto-generates tool schemas from Google-style docstrings. Each tool calls
+  the local TypeScript layer (via subprocess or the A2A endpoint itself).</p>
+
+  <div class="grid2">
+    <div>
+      <h4>SDK mastery tools</h4>
+      <pre><code><span class="keyword">def</span> read_sdk_file(file_path: str) -&gt; str:
+    <span class="string">"""
+    Read a file from the claude-code-sdk-ts repo.
+
+    Args:
+        file_path (str): Path relative to repo root
+            e.g. "src/fluent.ts"
+
+    Returns:
+        str: File contents or error message
+    """</span>
+    base = <span class="string">"/home/adamsl/claude-code-sdk-ts"</span>
+    full = os.path.join(base, file_path)
+    <span class="keyword">with</span> open(full) <span class="keyword">as</span> f:
+        <span class="keyword">return</span> f.read()
+
+<span class="keyword">def</span> run_typescript(script: str) -&gt; str:
+    <span class="string">"""
+    Run an npm script in the SDK repo.
+
+    Args:
+        script (str): One of: build, test,
+            typecheck, lint, format, dev
+
+    Returns:
+        str: stdout + stderr output
+    """</span>
+    result = subprocess.run(
+        [<span class="string">"npm"</span>, <span class="string">"run"</span>, script],
+        cwd=<span class="string">"/home/adamsl/claude-code-sdk-ts"</span>,
+        capture_output=<span class="keyword">True</span>, text=<span class="keyword">True</span>
+    )
+    <span class="keyword">return</span> result.stdout + result.stderr</code></pre>
+    </div>
+    <div>
+      <h4>Communication tools</h4>
+      <pre><code><span class="keyword">def</span> send_a2a_task(
+    agent_url: str,
+    skill_id: str,
+    message: str
+) -&gt; str:
+    <span class="string">"""
+    Delegate a task to another A2A agent.
+
+    Args:
+        agent_url (str): Base URL of the target agent
+        skill_id (str): Skill to invoke
+        message (str): Task description/payload
+
+    Returns:
+        str: JSON-serialized Task result
+    """</span>
+    payload = {
+        <span class="string">"jsonrpc"</span>: <span class="string">"2.0"</span>, <span class="string">"method"</span>: <span class="string">"SendMessage"</span>,
+        <span class="string">"id"</span>: str(uuid.uuid4()),
+        <span class="string">"params"</span>: {
+            <span class="string">"message"</span>: {
+                <span class="string">"role"</span>: <span class="string">"ROLE_USER"</span>,
+                <span class="string">"parts"</span>: [{<span class="string">"text"</span>: message}]
+            },
+            <span class="string">"skill"</span>: skill_id
+        }
+    }
+    r = requests.post(agent_url, json=payload)
+    <span class="keyword">return</span> r.text
+
+<span class="keyword">def</span> send_letta_message(
+    agent_id: str, message: str
+) -&gt; str:
+    <span class="string">"""
+    Send a message to another Letta agent.
+
+    Args:
+        agent_id (str): Target Letta agent ID
+        message (str): Message content
+
+    Returns:
+        str: Agent reply
+    """</span>
+    <span class="comment"># 'client' is auto-injected by Letta</span>
+    result = client.agents.messages.create(
+        agent_id=agent_id,
+        messages=[{<span class="string">"role"</span>: <span class="string">"user"</span>, <span class="string">"content"</span>: message}]
+    )
+    <span class="keyword">return</span> str(result)</code></pre>
+    </div>
+  </div>
+
+  <div class="note">
+    <strong>Letta client injection:</strong> When Letta calls a tool that uses <code>client</code>
+    as a parameter name, Letta automatically injects a pre-initialized <code>Letta</code> client.
+    You also get <code>LETTA_AGENT_ID</code> as an env var. No manual auth needed inside tools.
+  </div>
+</div>
+
+<!-- Phase 5 -->
+<div class="phase-header">
+  <div class="phase-num">5</div>
+  <h3 style="margin:0;color:var(--text)">Capability Implementations</h3>
+  <span class="badge yellow">~4–6 hours</span>
+</div>
+<div class="card">
+  <p>Wire up each of the five capabilities. Each one follows the same pattern:
+  accept a normalized <code>ITaskRequest</code>, call the <strong>fluent Claude SDK</strong>,
+  stream chunks back, return an <code>ITaskResponse</code>.</p>
+
+  <h4>Shared SDK wrapper pattern</h4>
+  <pre><code><span class="keyword">import</span> { claude } <span class="keyword">from</span> <span class="string">"../../src/fluent"</span>;  <span class="comment">// local file: ref</span>
+
+<span class="keyword">export async function</span> <span class="type">runCapability</span>(
+  prompt: <span class="type">string</span>,
+  role: <span class="type">string</span>,
+  onChunk: (chunk: <span class="type">string</span>) =&gt; <span class="keyword">void</span>
+): <span class="keyword">Promise</span>&lt;<span class="type">string</span>&gt; {
+  <span class="keyword">const</span> builder = claude()
+    .withRole(role)
+    .withPermissions({ allowedTools: [] }) <span class="comment">// scope: read-only</span>
+    .withTelemetry(jeriTelemetry);
+
+  <span class="keyword">let</span> full = <span class="string">""</span>;
+  <span class="keyword">await</span> builder.ask(prompt).stream((chunk) =&gt; {
+    full += chunk;
+    onChunk(chunk);
+  });
+  <span class="keyword">return</span> full;
+}</code></pre>
+
+  <table>
+    <tr>
+      <th>Capability</th>
+      <th>Prompt strategy</th>
+      <th>Role file</th>
+    </tr>
+    <tr>
+      <td><code>analyzeStatement</code></td>
+      <td>Inject full statement text; ask for structured analysis (dates, totals, merchant breakdown)</td>
+      <td><code>roles/financial-analyst.yaml</code></td>
+    </tr>
+    <tr>
+      <td><code>extractTransactions</code></td>
+      <td>Regex pre-pass to find date/amount patterns, then SDK for ambiguous rows</td>
+      <td><code>roles/data-extractor.yaml</code></td>
+    </tr>
+    <tr>
+      <td><code>summarizeStatement</code></td>
+      <td>One-shot summary: total in/out, top 5 merchants, any flags</td>
+      <td><code>roles/summarizer.yaml</code></td>
+    </tr>
+    <tr>
+      <td><code>prepareReportSnippet</code></td>
+      <td>Format extracted data as Markdown table + one-paragraph narrative</td>
+      <td><code>roles/reporter.yaml</code></td>
+    </tr>
+    <tr>
+      <td><code>findAnomalies</code></td>
+      <td>Statistical pass (z-score) on amounts, then SDK explains each outlier</td>
+      <td><code>roles/auditor.yaml</code></td>
+    </tr>
+  </table>
+</div>
+
+<!-- Phase 6 -->
+<div class="phase-header">
+  <div class="phase-num">6</div>
+  <h3 style="margin:0;color:var(--text)">Integration &amp; Smoke Tests</h3>
+  <span class="badge yellow">~2 hours</span>
+</div>
+<div class="card">
+  <div class="grid2">
+    <div>
+      <h4>Letta smoke test</h4>
+      <pre><code><span class="comment"># Can Jeri read the SDK?</span>
+python3 -c <span class="string">"
+from letta_client import Letta
+c = Letta(base_url='http://10.0.0.143:8283')
+r = c.agents.messages.create(
+  agent_id='&lt;jeri-id&gt;',
+  messages=[{'role':'user',
+    'content':'Read src/fluent.ts and tell me what claude() returns'}]
+)
+print(r)
+"</span></code></pre>
+    </div>
+    <div>
+      <h4>A2A smoke test</h4>
+      <pre><code><span class="comment"># 1. AgentCard discovery</span>
+curl http://10.0.0.143:9001/.well-known/agent.json | jq .
+
+<span class="comment"># 2. SendMessage</span>
+curl -X POST http://10.0.0.143:9001/ \
+  -H <span class="string">"Content-Type: application/json"</span> \
+  -d <span class="string">'{
+    "jsonrpc":"2.0","method":"SendMessage","id":"t1",
+    "params":{
+      "message":{"role":"ROLE_USER",
+        "parts":[{"text":"Summarize january statements"}]},
+      "skill":"summarize_statement"
+    }
+  }'</span></code></pre>
+    </div>
+  </div>
+  <h4>Agent-to-agent round-trip test</h4>
+  <pre><code><span class="comment"># From another Letta agent, ask Jeri to call the orchestrator back</span>
+c.agents.messages.create(jeri_id, [{
+  <span class="string">"role"</span>: <span class="string">"user"</span>,
+  <span class="string">"content"</span>: <span class="string">"Send a message to agent &lt;orchestrator-id&gt; saying you are online"</span>
+}])</code></pre>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2>6. Tool Shape Compatibility Matrix</h2>
+
+<p>Both Letta and A2A need tools/skills with the same <em>logical</em> interface.
+Here's how they map:</p>
+
+<table>
+  <tr>
+    <th>Letta tool name</th>
+    <th>A2A skill ID</th>
+    <th>Input</th>
+    <th>Output</th>
+    <th>Notes</th>
+  </tr>
+  <tr>
+    <td><code>read_sdk_file</code></td>
+    <td>— (internal only)</td>
+    <td><code>file_path: str</code></td>
+    <td><code>str</code> (file content)</td>
+    <td>Not exposed via A2A (filesystem access)</td>
+  </tr>
+  <tr>
+    <td><code>run_typescript</code></td>
+    <td>— (internal only)</td>
+    <td><code>script: str</code></td>
+    <td><code>str</code> (stdout+stderr)</td>
+    <td>Not exposed via A2A (security boundary)</td>
+  </tr>
+  <tr>
+    <td><code>analyze_statement</code></td>
+    <td><code>analyze_statement</code></td>
+    <td><code>statement_path: str</code></td>
+    <td>JSON analysis</td>
+    <td>A2A Part type: <code>data</code></td>
+  </tr>
+  <tr>
+    <td><code>extract_transactions</code></td>
+    <td><code>extract_transactions</code></td>
+    <td><code>statement_path: str</code></td>
+    <td>JSON array of rows</td>
+    <td>A2A Part type: <code>data</code></td>
+  </tr>
+  <tr>
+    <td><code>summarize_statement</code></td>
+    <td><code>summarize_statement</code></td>
+    <td><code>statement_path: str</code></td>
+    <td>Natural language string</td>
+    <td>A2A Part type: <code>text</code></td>
+  </tr>
+  <tr>
+    <td><code>prepare_report_snippet</code></td>
+    <td><code>prepare_report_snippet</code></td>
+    <td><code>transactions: list</code></td>
+    <td>Markdown string</td>
+    <td>A2A Part type: <code>text</code></td>
+  </tr>
+  <tr>
+    <td><code>find_anomalies</code></td>
+    <td><code>find_anomalies</code></td>
+    <td><code>statement_path: str</code></td>
+    <td>JSON flagged rows</td>
+    <td>A2A Part type: <code>data</code></td>
+  </tr>
+  <tr>
+    <td><code>send_a2a_task</code></td>
+    <td>— (outbound only)</td>
+    <td><code>agent_url, skill_id, message</code></td>
+    <td><code>str</code> (JSON response)</td>
+    <td>Jeri uses this to call OTHER A2A agents</td>
+  </tr>
+  <tr>
+    <td><code>send_letta_message</code></td>
+    <td>— (outbound only)</td>
+    <td><code>agent_id, message</code></td>
+    <td><code>str</code> (reply)</td>
+    <td>Jeri uses this to message Letta peers</td>
+  </tr>
+</table>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2>7. Streaming Flow (existing design — implement it)</h2>
+
+<p>The <code>docs/a2a-flow.mmd</code> Mermaid diagram already captures the correct
+streaming path. Here is the prose version for the team:</p>
+
+<div class="diagram">
+  1. Orchestrator publishes to topic <code>january-statements</code>
+  2. Jeri's MessengerClient receives the envelope
+  3. MessageObserver passes it to RequestParser → ITaskRequest
+  4. TaskDispatcher looks up the capability in CapabilityRegistry
+  5. Capability calls: <code>claude().withRole(role).ask(prompt).stream(cb)</code>
+
+  ┌── for each chunk ────────────────────────────────────────────────┐
+  │  StreamSink.onAssistantText(chunk)                               │
+  │  ResponsePublisher.publish("partial", chunk)         SSE frame   │
+  │  MessengerClient.publish(correlationId, partialFrame)            │
+  │  → Orchestrator receives live token stream                       │
+  └──────────────────────────────────────────────────────────────────┘
+
+  6. Stream ends → Cap publishes terminal "ok" frame
+  7. Task transitions: WORKING → COMPLETED
+  8. Artifacts array populated with final result
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2>8. Scope Guard &amp; Safety Rules</h2>
+
+<div class="card orange">
+  <p>Jeri <strong>must not</strong> read or write outside her allowed paths.
+  Implement <code>IScopeGuard</code> (from blueprint) as a simple path prefix check
+  applied before every file operation.</p>
+  <ul>
+    <li><strong>Read allowed:</strong> <code>/home/adamsl/claude-code-sdk-ts/**</code> and <code>$JERI_ARTIFACT_ROOT/**</code> and the January statements dir</li>
+    <li><strong>Write allowed:</strong> <code>$JERI_ARTIFACT_ROOT/**</code> only</li>
+    <li><strong>Never:</strong> <code>~/.ssh</code>, <code>.env</code>, any path outside the above</li>
+    <li><strong>npm scripts allowed:</strong> <code>build</code>, <code>test</code>, <code>typecheck</code>, <code>lint</code>, <code>format</code> — no others</li>
+  </ul>
+  <pre><code><span class="keyword">function</span> assertAllowed(path: <span class="type">string</span>): <span class="keyword">void</span> {
+  <span class="keyword">const</span> allowed = [SDK_ROOT, ARTIFACT_ROOT, STATEMENTS_DIR];
+  <span class="keyword">if</span> (!allowed.some(r => path.startsWith(r))) {
+    <span class="keyword">throw new</span> <span class="type">ScopeViolationError</span>(<span class="string">`Access denied: <span class="keyword">${</span>path<span class="keyword">}</span>`</span>);
+  }
+}</code></pre>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2>9. Environment Variables</h2>
+
+<table>
+  <tr><th>Variable</th><th>Value</th><th>Where set</th></tr>
+  <tr><td><code>LETTA_API_KEY</code></td><td>(Letta server key if auth enabled)</td><td><code>.env</code> on mom's machine</td></tr>
+  <tr><td><code>LETTA_BASE_URL</code></td><td><code>http://10.0.0.143:8283</code></td><td><code>.env</code></td></tr>
+  <tr><td><code>JERI_A2A_PORT</code></td><td><code>9001</code></td><td><code>.env</code></td></tr>
+  <tr><td><code>JERI_ARTIFACT_ROOT</code></td><td><code>/home/adamsl/jeri_artifacts</code></td><td><code>.env</code></td></tr>
+  <tr><td><code>ANTHROPIC_API_KEY</code></td><td>(required for SDK calls)</td><td><code>.env</code></td></tr>
+  <tr><td><code>CLAUDE_CODE_SDK_ROOT</code></td><td><code>/home/adamsl/claude-code-sdk-ts</code></td><td><code>.env</code></td></tr>
+  <tr><td><code>JANUARY_STATEMENTS_DIR</code></td><td><code>/home/adamsl/rol_finances/readable_documents/bank_statements/january</code></td><td><code>.env</code></td></tr>
+</table>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2>10. Jedi Knighthood Criteria</h2>
+
+<div class="card green">
+  <p>Jeri earns her Jedi knighthood when she can pass all five trials:</p>
+  <ol>
+    <li><strong>SDK Mastery:</strong> Given only a Letta prompt, she reads <code>src/fluent.ts</code>,
+        explains the fluent chain, and writes a working TypeScript snippet using it.</li>
+    <li><strong>Statement Analysis:</strong> Feed her a raw January PDF path via A2A
+        <code>analyze_statement</code> — she returns structured JSON with totals and merchant breakdown.</li>
+    <li><strong>Peer Communication:</strong> She successfully calls another Letta agent on the mesh
+        (via <code>send_letta_message</code>) and receives a reply.</li>
+    <li><strong>A2A Discovery:</strong> An external agent GETs her AgentCard, POSTs a
+        <code>SendStreamingMessage</code>, and receives live SSE chunks ending in a COMPLETED task.</li>
+    <li><strong>Anomaly Detection:</strong> Given a statement with one planted outlier transaction,
+        she flags it with <code>find_anomalies</code> and explains why it's suspicious.</li>
+  </ol>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2>11. Recommended Build Order for the Team</h2>
+
+<table>
+  <tr><th>Step</th><th>File(s)</th><th>Effort</th><th>Verify with</th></tr>
+  <tr><td>1. Update Letta creator script</td><td><code>create-letta-agent.py</code></td><td>30 min</td><td><code>python3 create-letta-agent.py</code>, check Letta ADE</td></tr>
+  <tr><td>2. Scaffold agents/jeri/ dirs</td><td>all dirs + empty index.ts</td><td>20 min</td><td><code>npm run typecheck</code> (should pass empty files)</td></tr>
+  <tr><td>3. Copy interface stubs from blueprint</td><td>8 interface .ts files</td><td>45 min</td><td><code>npm run typecheck</code></td></tr>
+  <tr><td>4. Write Letta tools.py</td><td><code>agents/jeri/letta/tools.py</code></td><td>1 hr</td><td>Smoke test: ask Jeri to read a file via Letta chat</td></tr>
+  <tr><td>5. Build A2A server skeleton</td><td><code>agents/jeri/a2a/server.ts</code></td><td>2 hr</td><td><code>curl /.well-known/agent.json</code></td></tr>
+  <tr><td>6. Implement capabilities one-by-one</td><td><code>capabilities/*.ts</code></td><td>4 hr</td><td>A2A SendMessage for each skill</td></tr>
+  <tr><td>7. SSE streaming</td><td><code>agents/jeri/a2a/streaming.ts</code></td><td>1 hr</td><td><code>curl -N</code> SendStreamingMessage, watch tokens arrive</td></tr>
+  <tr><td>8. Run Jedi trials</td><td>—</td><td>1 hr</td><td>All 5 trial prompts pass</td></tr>
+</table>
+
+<hr />
+<p style="color:var(--muted);font-size:0.8rem;text-align:center">
+  Plan authored by Claude Sonnet 4.6 · 2026-06-02 · Delivered to the Mom's Machine Team<br/>
+  Source repos: <code>/home/adamsl/claude-code-sdk-ts</code> · Letta server: <code>10.0.0.143:8283</code>
+</p>
+
+</body>
+</html>
