@@ -86,6 +86,9 @@ export type Message = UserMessage | AssistantMessage | SystemMessage | ResultMes
 
 // MCP server configuration
 export interface MCPServer {
+  // Optional server name. Used as the key in the CLI's --mcp-config object map
+  // and as the namespace for tools (mcp__<name>__<tool>). Defaults to server<i>.
+  name?: string;
   command: string;
   args?: string[];
   env?: Record<string, string>;

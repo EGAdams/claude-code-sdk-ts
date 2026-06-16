@@ -133,10 +133,18 @@ export class SubprocessCLITransport {
     }
     // Note: 'default' and 'acceptEdits' are not supported by current CLI version
 
-    // Handle MCP config
+    // Handle MCP config. The Claude CLI's --mcp-config expects `mcpServers`
+    // as an object map keyed by server name, not an array — so convert here.
+    // Each server's optional `name` becomes the key (tools are namespaced
+    // mcp__<name>__<tool>); fall back to server<i> when unnamed.
     if (this.options.mcpServers && this.options.mcpServers.length > 0) {
+      const mcpServersMap: Record<string, unknown> = {};
+      this.options.mcpServers.forEach((srv, i) => {
+        const { name, ...rest } = srv as { name?: string } & Record<string, unknown>;
+        mcpServersMap[name || `server${i}`] = rest;
+      });
       const mcpConfig = {
-        mcpServers: this.options.mcpServers
+        mcpServers: mcpServersMap
       };
       args.push('--mcp-config', JSON.stringify(mcpConfig));
     }
