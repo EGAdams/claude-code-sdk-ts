@@ -1,0 +1,105 @@
+{
+  "name": "jeri-agent",
+  "version": "1.0.0",
+  "description": "January financial statement analyst and claude-code-sdk-ts expert",
+  "runtime": "node",
+  "topics": ["january-statements", "bank-statements", "readable-documents", "document-analysis"],
+  "memory_access": "read-write",
+  "capabilities": [
+    {
+      "name": "analyze_statement",
+      "description": "Deep structural analysis of a bank statement file — dates, totals, merchant breakdown",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "description": { "type": "string" },
+          "context": {
+            "type": "object",
+            "properties": {
+              "statementPath": { "type": "string", "description": "Absolute path to the statement file" }
+            },
+            "required": ["statementPath"]
+          }
+        },
+        "required": ["description"]
+      }
+    },
+    {
+      "name": "extract_transactions",
+      "description": "Extract structured transaction rows from a bank statement PDF or text file",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "description": { "type": "string" },
+          "context": {
+            "type": "object",
+            "properties": {
+              "statementPath": { "type": "string" }
+            },
+            "required": ["statementPath"]
+          }
+        },
+        "required": ["description"]
+      }
+    },
+    {
+      "name": "summarize_statement",
+      "description": "Natural language summary: total in/out, top merchants, any flags",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "description": { "type": "string" },
+          "context": {
+            "type": "object",
+            "properties": {
+              "statementPath": { "type": "string" }
+            },
+            "required": ["statementPath"]
+          }
+        },
+        "required": ["description"]
+      }
+    },
+    {
+      "name": "prepare_report_snippet",
+      "description": "Formatted Markdown table and one-paragraph narrative for rollup reports",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "description": { "type": "string" },
+          "context": {
+            "type": "object",
+            "properties": {
+              "statementPath": { "type": "string" }
+            },
+            "required": ["statementPath"]
+          }
+        },
+        "required": ["description"]
+      }
+    },
+    {
+      "name": "find_anomalies",
+      "description": "Flag unusual or unexpected transactions using statistical analysis",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "description": { "type": "string" },
+          "context": {
+            "type": "object",
+            "properties": {
+              "statementPath": { "type": "string" }
+            },
+            "required": ["statementPath"]
+          }
+        },
+        "required": ["description"]
+      }
+    }
+  ],
+  "allowed_override_paths": [],
+  "a2a": {
+    "url": "http://10.0.0.143:9001",
+    "agentCard": "/.well-known/agent.json"
+  }
+}
